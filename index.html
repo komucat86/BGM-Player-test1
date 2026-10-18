@@ -112,8 +112,7 @@
     <script>
         let audioCtx = null;
         let playlist = []; // { name, file, buffer }
-        let currentSource = null;
-        let currentGainNode = null;
+        let activeSources = []; // 再生中・フェードアウト中のすべての { source, gainNode } を保持
         let currentPlayingIndex = -1;
         let isInitialized = false;
 
@@ -129,7 +128,6 @@
         const testAudioBtn = document.getElementById('testAudioBtn');
         const fadeDurationRange = document.getElementById('fadeDurationRange');
         const fadeValue = document.getElementById('fadeValue');
-        const progressBar = document.getElementById('progressBar');
 
         // AudioContext 初期化 & バックグラウンド維持起動
         function initAudioContext() {
@@ -139,7 +137,6 @@
             if (audioCtx.state === 'suspended') {
                 audioCtx.resume();
             }
-            // 無音オーディオを再生してブラウザの省電力スリープをブロック
             silentAudio.play().catch(() => {});
             isInitialized = true;
         }
@@ -239,10 +236,6 @@
             );
         }
 
-        window.removeTask = function(index) {
-            // Unused placeholder
-        };
-
         window.removeTrack = function(index) {
             if (currentPlayingIndex === index) {
                 stopMusic();
@@ -261,7 +254,30 @@
             }
         });
 
-        // 音楽再生（曲が重ならないように既存ソースを確実にフェードアウト・停止してから新しいソースを生成）
+        // 現在鳴っている全ソースを迅速に音量ゼロにして安全に停止・破棄する関数
+        function stopAllActiveSources(fadeTime = 0.2) {
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime;
+
+            activeSources.forEach(item => {
+                try {
+                    item.gainNode.gain.cancelScheduledValues(now);
+                    item.gainNode.gain.setValueAtTime(item.gainNode.gain.value, now);
+                    item.gainNode.gain.linearRampToValueAtTime(0, now + fadeTime);
+                    setTimeout(() => {
+                        try {
+                            item.source.stop();
+                            item.source.disconnect();
+                            item.gainNode.disconnect();
+                        } catch(e) {}
+                    }, fadeTime * 1000 + 50);
+                } catch(e) {}
+            });
+
+            activeSources = [];
+        }
+
+        // 音楽再生（過去の全ソースを完全にクリアしてから新しい曲を開始）
         window.playTrack = function(index) {
             if (!playlist[index]) return;
             initAudioContext();
@@ -269,18 +285,8 @@
             const fadeDuration = parseFloat(fadeDurationRange.value);
             const now = audioCtx.currentTime;
 
-            // 既に鳴っている音があればフェードアウトして即停止
-            if (currentSource && currentGainNode) {
-                try {
-                    currentGainNode.gain.cancelScheduledValues(now);
-                    currentGainNode.gain.setValueAtTime(currentGainNode.gain.value, now);
-                    currentGainNode.gain.linearRampToValueAtTime(0, now + 0.1);
-                    const oldSource = currentSource;
-                    setTimeout(() => {
-                        try { oldSource.stop(); oldSource.disconnect(); } catch(e){}
-                    }, 120);
-                } catch(e) {}
-            }
+            // 既存の再生中ソースをすべて急速フェードアウトしてクリア（音の重なりを完全防止）
+            stopAllActiveSources(0.15);
 
             currentPlayingIndex = index;
             renderPlaylist();
@@ -301,11 +307,13 @@
             gainNode.connect(audioCtx.destination);
 
             source.start(now);
-            currentSource = source;
-            currentGainNode = gainNode;
+
+            const sourceObj = { source, gainNode };
+            activeSources.push(sourceObj);
 
             source.onended = () => {
-                if (currentSource === source) {
+                activeSources = activeSources.filter(item => item.source !== source);
+                if (currentPlayingIndex === index && activeSources.length === 0) {
                     currentPlayingIndex = -1;
                     currentTrackTitle.textContent = '停止中';
                     renderPlaylist();
@@ -313,31 +321,15 @@
             };
         };
 
-        // 停止（フェードアウト）
+        // 停止（設定されたフェード時間でフェードアウトして全停止）
         function stopMusic() {
-            if (!currentSource || !currentGainNode || currentPlayingIndex === -1) return;
+            if (activeSources.length === 0 && currentPlayingIndex === -1) return;
             initAudioContext();
 
             const fadeDuration = parseFloat(fadeDurationRange.value);
-            const now = audioCtx.currentTime;
-
-            try {
-                currentGainNode.gain.cancelScheduledValues(now);
-                currentGainNode.gain.setValueAtTime(currentGainNode.gain.value, now);
-                currentGainNode.gain.linearRampToValueAtTime(0, now + fadeDuration);
-
-                const srcToStop = currentSource;
-                setTimeout(() => {
-                    try {
-                        srcToStop.stop();
-                        srcToStop.disconnect();
-                    } catch(e) {}
-                }, fadeDuration * 1000 + 50);
-            } catch(e) {}
+            stopAllActiveSources(fadeDuration);
 
             currentPlayingIndex = -1;
-            currentSource = null;
-            currentGainNode = null;
             currentTrackTitle.textContent = '停止中';
             renderPlaylist();
         }
@@ -416,30 +408,19 @@
                 return buffer;
             };
 
-            // ダミーバッファからファイルを模したオブジェクトを作成
-            const bufferToBlob = (buffer) => {
-                // 簡易WAV変換等ではなくAudioBufferを直接プレイリストに追加する特製ラッパー
-                return {
-                    name: `テストBGM_${playlist.length + 1}.wav`,
-                    file: new Blob([], {type: 'audio/wav'}),
-                    buffer: buffer
-                };
-            };
-
-            playlist.push(createBeepBuffer(440, 4)); // A4
-            playlist[playlist.length - 1] = {
-                name: `BGM_${playlist.length} (テスト440Hz)`,
-                file: new File([], `bgm_${playlist.length}.wav`),
-                buffer: createBeepBuffer(440, 5)
-            };
             playlist.push({
-                name: `BGM_${playlist.length + 1} (テスト880Hz)`,
-                file: new File([], `bgm_${playlist.length + 1}.wav`),
+                name: `BGM_1 (テスト440Hz)`,
+                file: new File([], `bgm_1.wav`),
+                buffer: createBeepBuffer(440, 5)
+            });
+            playlist.push({
+                name: `BGM_2 (テスト880Hz)`,
+                file: new File([], `bgm_2.wav`),
                 buffer: createBeepBuffer(880, 5)
             });
             playlist.push({
-                name: `BGM_${playlist.length + 1} (テスト1320Hz)`,
-                file: new File([], `bgm_${playlist.length + 1}.wav`),
+                name: `BGM_3 (テスト1320Hz)`,
+                file: new File([], `bgm_3.wav`),
                 buffer: createBeepBuffer(1320, 5)
             });
 
@@ -475,7 +456,7 @@
             navigator.mediaSession.setActionHandler('pause', stopMusic);
             navigator.mediaSession.setActionHandler('stop', stopMusic);
             
-            // 次の曲ボタン（物理メディアコントローラーのNext）で BGM1 → BGM2 → BGM3 と順番にループ切替
+            // 物理メディアコントローラーのNextで BGM1 → BGM2 → BGM3 ... と切替
             navigator.mediaSession.setActionHandler('nexttrack', () => {
                 if (playlist.length === 0) return;
                 const nextIndex = (currentPlayingIndex + 1) % playlist.length;
