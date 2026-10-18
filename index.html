@@ -112,7 +112,7 @@
     <script>
         let audioCtx = null;
         let playlist = []; // { name, file, buffer }
-        let activeSources = []; // 再生中・フェードアウト中のすべての { source, gainNode } を保持
+        let activeSources = []; // 鳴っている音源とゲインを全て管理する配列
         let currentPlayingIndex = -1;
         let isInitialized = false;
 
@@ -128,6 +128,7 @@
         const testAudioBtn = document.getElementById('testAudioBtn');
         const fadeDurationRange = document.getElementById('fadeDurationRange');
         const fadeValue = document.getElementById('fadeValue');
+        const progressBar = document.getElementById('progressBar');
 
         // AudioContext 初期化 & バックグラウンド維持起動
         function initAudioContext() {
@@ -254,30 +255,7 @@
             }
         });
 
-        // 現在鳴っている全ソースを迅速に音量ゼロにして安全に停止・破棄する関数
-        function stopAllActiveSources(fadeTime = 0.2) {
-            if (!audioCtx) return;
-            const now = audioCtx.currentTime;
-
-            activeSources.forEach(item => {
-                try {
-                    item.gainNode.gain.cancelScheduledValues(now);
-                    item.gainNode.gain.setValueAtTime(item.gainNode.gain.value, now);
-                    item.gainNode.gain.linearRampToValueAtTime(0, now + fadeTime);
-                    setTimeout(() => {
-                        try {
-                            item.source.stop();
-                            item.source.disconnect();
-                            item.gainNode.disconnect();
-                        } catch(e) {}
-                    }, fadeTime * 1000 + 50);
-                } catch(e) {}
-            });
-
-            activeSources = [];
-        }
-
-        // 音楽再生（過去の全ソースを完全にクリアしてから新しい曲を開始）
+        // 音楽再生（現在鳴っている音源を全て確実にフェードアウトさせて排他制御する）
         window.playTrack = function(index) {
             if (!playlist[index]) return;
             initAudioContext();
@@ -285,8 +263,22 @@
             const fadeDuration = parseFloat(fadeDurationRange.value);
             const now = audioCtx.currentTime;
 
-            // 既存の再生中ソースをすべて急速フェードアウトしてクリア（音の重なりを完全防止）
-            stopAllActiveSources(0.15);
+            // 既にアクティブな音源が少しでもあれば、すべてフェードアウトさせて停止予約
+            if (activeSources.length > 0) {
+                const oldSources = [...activeSources];
+                activeSources = []; // リストをクリア
+
+                oldSources.forEach(item => {
+                    try {
+                        item.gainNode.gain.cancelScheduledValues(now);
+                        item.gainNode.gain.setValueAtTime(item.gainNode.gain.value, now);
+                        item.gainNode.gain.linearRampToValueAtTime(0, now + fadeDuration);
+                        setTimeout(() => {
+                            try { item.source.stop(); item.source.disconnect(); } catch(e){}
+                        }, fadeDuration * 1000 + 50);
+                    } catch(e) {}
+                });
+            }
 
             currentPlayingIndex = index;
             renderPlaylist();
@@ -308,10 +300,11 @@
 
             source.start(now);
 
-            const sourceObj = { source, gainNode };
-            activeSources.push(sourceObj);
+            const activeItem = { source, gainNode, index };
+            activeSources.push(activeItem);
 
             source.onended = () => {
+                // 終了した音源を配列から除外
                 activeSources = activeSources.filter(item => item.source !== source);
                 if (currentPlayingIndex === index && activeSources.length === 0) {
                     currentPlayingIndex = -1;
@@ -321,13 +314,31 @@
             };
         };
 
-        // 停止（設定されたフェード時間でフェードアウトして全停止）
+        // 停止（現在アクティブな音源をすべてフェードアウト）
         function stopMusic() {
-            if (activeSources.length === 0 && currentPlayingIndex === -1) return;
+            if (activeSources.length === 0) return;
             initAudioContext();
 
             const fadeDuration = parseFloat(fadeDurationRange.value);
-            stopAllActiveSources(fadeDuration);
+            const now = audioCtx.currentTime;
+
+            const sourcesToStop = [...activeSources];
+            activeSources = [];
+
+            sourcesToStop.forEach(item => {
+                try {
+                    item.gainNode.gain.cancelScheduledValues(now);
+                    item.gainNode.gain.setValueAtTime(item.gainNode.gain.value, now);
+                    item.gainNode.gain.linearRampToValueAtTime(0, now + fadeDuration);
+
+                    setTimeout(() => {
+                        try {
+                            item.source.stop();
+                            item.source.disconnect();
+                        } catch(e) {}
+                    }, fadeDuration * 1000 + 50);
+                } catch(e) {}
+            });
 
             currentPlayingIndex = -1;
             currentTrackTitle.textContent = '停止中';
@@ -456,7 +467,7 @@
             navigator.mediaSession.setActionHandler('pause', stopMusic);
             navigator.mediaSession.setActionHandler('stop', stopMusic);
             
-            // 物理メディアコントローラーのNextで BGM1 → BGM2 → BGM3 ... と切替
+            // 次の曲ボタンで BGM1 → BGM2 → BGM3 と順番にループ切替
             navigator.mediaSession.setActionHandler('nexttrack', () => {
                 if (playlist.length === 0) return;
                 const nextIndex = (currentPlayingIndex + 1) % playlist.length;
