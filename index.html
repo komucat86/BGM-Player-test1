@@ -1,485 +1,1110 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BGM Master Player</title>
+    <title>BGM Master Player Pro - MediaSession & Physical Controller Ready</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
     <!-- JSZip & FileSaver -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            400: '#4ade80',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            900: '#14532d',
+                        },
+                        darkbg: '#0b0f17',
+                        darkcard: '#151d2a',
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0b0f17; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #334155; }
     </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-between p-4 md:p-8">
+<body class="bg-darkbg text-slate-100 min-h-screen flex flex-col font-sans antialiased selection:bg-brand-500 selection:text-white">
 
-    <!-- バックグラウンド維持用の無音オーディオストリーム -->
-    <audio id="silentAudio" loop style="display:none;" src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA"></audio>
+    <!-- Hidden HTML5 Audio Element for Background Keep-Alive & OS Media Keys Binding -->
+    <audio id="silent-keepalive" loop style="display:none;"></audio>
 
-    <div class="w-full max-w-4xl mx-auto space-y-6">
-        <!-- ヘッダー -->
-        <header class="flex flex-col md:flex-row items-center justify-between bg-slate-900/80 backdrop-blur border border-slate-800 p-6 rounded-2xl shadow-2xl gap-4">
-            <div>
-                <h1 class="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-indigo-500 bg-clip-text text-transparent">BGM Master Player</h1>
-                <p class="text-sm text-slate-400 mt-1">幅広い音声対応・フェード制御・ZIP一括管理・メディアキー対応</p>
+    <!-- Header -->
+    <header class="border-b border-slate-800/80 bg-slate-900/90 backdrop-blur sticky top-0 z-50 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-gradient-to-tr from-brand-600 to-emerald-400 p-2.5 rounded-xl shadow-lg shadow-brand-500/20">
+                    <i data-lucide="music-4" class="w-6 h-6 text-white"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+                            BGM Master Player Pro
+                        </h1>
+                        <span id="bg-keepalive-badge" class="text-[10px] px-2 py-0.5 rounded-full font-mono bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1" title="バックグラウンド再生・物理コントローラー連携機能">
+                            <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                            <span>Media Control: Standby</span>
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-400">GitHub Pages / Web App • BGM ShortKeys: W (BGM1), E (BGM2), R (BGM3) | Media Key Next: Track Forward</p>
+                </div>
             </div>
-            <div class="flex flex-wrap items-center gap-3">
-                <label class="cursor-pointer bg-cyan-600 hover:bg-cyan-500 text-white font-medium px-4 py-2.5 rounded-xl shadow transition flex items-center gap-2 text-sm">
-                    📁 音声追加
-                    <input type="file" id="audioFileInput" multiple accept="audio/*" class="hidden">
+
+            <!-- Toolbar / Export & Import -->
+            <div class="flex items-center gap-2 flex-wrap">
+                <label for="zip-input" class="cursor-pointer px-3.5 py-2 bg-slate-800/90 hover:bg-slate-700 active:bg-slate-600 text-slate-200 rounded-lg text-sm font-medium transition flex items-center gap-2 border border-slate-700/70 shadow-sm">
+                    <i data-lucide="folder-archive" class="w-4 h-4 text-emerald-400"></i>
+                    <span>ZIP読込</span>
+                    <input type="file" id="zip-input" accept=".zip" class="hidden">
                 </label>
-                <label class="cursor-pointer bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-4 py-2.5 rounded-xl shadow transition flex items-center gap-2 text-sm">
-                    📦 ZIP読込
-                    <input type="file" id="zipFileInput" accept=".zip" class="hidden">
-                </label>
-                <button id="exportZipBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium px-4 py-2.5 rounded-xl border border-slate-700 shadow transition flex items-center gap-2 text-sm">
-                    💾 ZIP保存
+                <button id="btn-export-zip" class="px-3.5 py-2 bg-slate-800/90 hover:bg-slate-700 active:bg-slate-600 text-slate-200 rounded-lg text-sm font-medium transition flex items-center gap-2 border border-slate-700/70 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                    <i data-lucide="download" class="w-4 h-4 text-brand-400"></i>
+                    <span>ZIP保存</span>
+                </button>
+                <button id="btn-demo" class="px-3 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 rounded-lg text-sm font-medium transition border border-emerald-500/20 flex items-center gap-1.5">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i>
+                    <span>デモ音源生成</span>
+                </button>
+                <button id="btn-clear" class="px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg text-sm font-medium transition border border-rose-500/20 flex items-center gap-1.5">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    <span>全消去</span>
                 </button>
             </div>
-        </header>
+        </div>
+    </header>
 
-        <!-- メインパネル -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <!-- プレイリスト部 (2カラム) -->
-            <div class="md:col-span-2 bg-slate-900/60 backdrop-blur border border-slate-800 p-6 rounded-2xl shadow-xl flex flex-col h-[420px]">
-                <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-lg font-semibold text-slate-200 flex items-center gap-2">
-                        🎵 プレイリスト <span id="trackCount" class="text-xs bg-slate-800 px-2 py-0.5 rounded-full text-slate-400">0 曲</span>
-                    </h2>
-                    <button id="clearPlaylistBtn" class="text-xs text-rose-400 hover:text-rose-300 transition">全クリア</button>
-                </div>
-                <div id="playlistContainer" class="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                    <div id="emptyMessage" class="h-full flex flex-col items-center justify-center text-slate-500 text-sm text-center p-6 border-2 border-dashed border-slate-800 rounded-xl">
-                        音声ファイル（MP3, FLAC, WAV, OGG, AAC等）またはZIPをドラッグ＆ドロップするか、上のボタンから追加してください。
-                    </div>
-                </div>
-            </div>
-
-            <!-- コントロール・設定部 (1カラム) -->
-            <div class="bg-slate-900/60 backdrop-blur border border-slate-800 p-6 rounded-2xl shadow-xl flex flex-col justify-between space-y-6">
-                <!-- 現在の再生状況 -->
-                <div class="space-y-3">
-                    <h2 class="text-lg font-semibold text-slate-200">🎛️ 再生ステータス</h2>
-                    <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-                        <div class="text-xs text-slate-400 uppercase tracking-wider">現在再生中</div>
-                        <div id="currentTrackTitle" class="text-base font-bold text-cyan-400 truncate">停止中</div>
-                        <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                            <div id="progressBar" class="bg-cyan-500 h-full w-0 transition-all duration-150"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- フェード時間設定 -->
-                <div class="space-y-2">
-                    <div class="flex justify-between text-sm">
-                        <span class="text-slate-400">フェード時間</span>
-                        <span id="fadeValue" class="font-bold text-cyan-400">1.5秒</span>
-                    </div>
-                    <input type="range" id="fadeDurationRange" min="0.1" max="5.0" step="0.1" value="1.5" class="w-full accent-cyan-500 cursor-pointer">
-                </div>
-
-                <!-- 操作ボタン一覧 -->
-                <div class="grid grid-cols-2 gap-3">
-                    <button id="stopBtn" class="bg-rose-600/80 hover:bg-rose-600 text-white font-medium py-3 px-4 rounded-xl shadow transition text-sm flex items-center justify-center gap-2">
-                        ⏹️ 停止 [S]
-                    </button>
-                    <button id="testAudioBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium py-3 px-4 rounded-xl border border-slate-700 shadow transition text-sm flex items-center justify-center gap-2">
-                        ✨ テスト音生成
-                    </button>
-                </div>
+    <!-- OS Restriction & Physical Controller Banner -->
+    <div class="bg-indigo-950/60 border-b border-indigo-800/50 px-4 py-2.5 text-xs text-indigo-200">
+        <div class="max-w-7xl mx-auto flex items-start sm:items-center gap-2">
+            <i data-lucide="radio-receiver" class="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5 sm:mt-0"></i>
+            <div>
+                <span class="font-bold text-emerald-300">物理メディアコントローラー / メディアキー対応：</span>
+                キーボードやBluetoothメディアコントローラーの『次の曲 (Next Track)』ボタンを押すと、リスト順（BGM1 → BGM2 → BGM3 ...）にスムーズにフェード切り替え再生されます。
             </div>
         </div>
-
-        <!-- キーボード・ショートカット説明 -->
-        <footer class="bg-slate-900/40 border border-slate-800/80 p-4 rounded-xl text-xs text-slate-400 flex flex-wrap items-center justify-between gap-4">
-            <div class="flex items-center gap-4">
-                <span><kbd class="bg-slate-800 px-2 py-1 rounded text-cyan-400 font-mono">W</kbd> BGM1</span>
-                <span><kbd class="bg-slate-800 px-2 py-1 rounded text-cyan-400 font-mono">E</kbd> BGM2</span>
-                <span><kbd class="bg-slate-800 px-2 py-1 rounded text-cyan-400 font-mono">R</kbd> BGM3</span>
-                <span><kbd class="bg-slate-800 px-2 py-1 rounded text-rose-400 font-mono">S</kbd> 停止 (フェードアウト)</span>
-                <span><kbd class="bg-slate-800 px-2 py-1 rounded text-slate-300 font-mono">Space</kbd> 再生/一時停止</span>
-            </div>
-            <div class="text-slate-500">
-                ※物理メディアキー（次の曲ボタン等）による順次切替にも対応
-            </div>
-        </footer>
     </div>
 
-    <!-- JavaScript ロジック -->
+    <!-- Main Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Left Column: Now Playing & Controls -->
+        <section class="lg:col-span-1 space-y-6">
+            
+            <!-- Now Playing Visualizer Card -->
+            <div class="bg-darkcard border border-slate-800/80 rounded-2xl p-5 shadow-xl relative overflow-hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-slate-600" id="status-dot"></span>
+                        Status
+                    </span>
+                    <span id="player-status-badge" class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700">
+                        停止中
+                    </span>
+                </div>
+
+                <!-- Track Info -->
+                <div class="mb-4">
+                    <h2 id="now-playing-title" class="text-lg font-bold text-slate-100 truncate">
+                        トラック未選択
+                    </h2>
+                    <p id="now-playing-sub" class="text-xs text-slate-400 mt-1 truncate">
+                        [W] [E] [R] または 物理コントローラーの[次へ]ボタンで再生
+                    </p>
+                </div>
+
+                <!-- Visualizer Canvas -->
+                <div class="relative w-full h-24 bg-slate-900/90 rounded-xl overflow-hidden border border-slate-800/80 mb-4 flex items-center justify-center">
+                    <canvas id="visualizer" class="w-full h-full absolute inset-0"></canvas>
+                    <p id="visualizer-placeholder" class="text-xs text-slate-600 z-10 pointer-events-none">Visualizer Standby</p>
+                </div>
+
+                <!-- Time Progress -->
+                <div class="space-y-1 mb-4">
+                    <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden cursor-pointer relative" id="progress-container">
+                        <div id="progress-bar" class="bg-gradient-to-r from-brand-500 to-emerald-400 h-full w-0 transition-all duration-100"></div>
+                    </div>
+                    <div class="flex justify-between text-xs text-slate-400 font-mono">
+                        <span id="time-current">00:00</span>
+                        <span id="time-duration">00:00</span>
+                    </div>
+                </div>
+
+                <!-- Global Play Controls -->
+                <div class="flex items-center justify-center gap-3 pt-2">
+                    <button id="btn-prev" title="前の曲" class="p-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-full border border-slate-700 transition active:scale-95 flex items-center justify-center">
+                        <i data-lucide="skip-back" class="w-5 h-5"></i>
+                    </button>
+                    <button id="btn-stop" title="フェードアウト停止 (S)" class="p-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-full border border-rose-500/20 transition active:scale-95 flex items-center justify-center">
+                        <i data-lucide="square" class="w-5 h-5"></i>
+                    </button>
+                    <button id="btn-toggle-play" title="再生 / 一時停止 (Space)" class="p-4 bg-brand-500 hover:bg-brand-600 text-white rounded-full shadow-lg shadow-brand-500/30 transition active:scale-95 flex items-center justify-center">
+                        <i data-lucide="play" class="w-6 h-6 fill-current" id="icon-play-main"></i>
+                    </button>
+                    <button id="btn-next" title="次の曲 (Media Key Next)" class="p-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-full border border-slate-700 transition active:scale-95 flex items-center justify-center">
+                        <i data-lucide="skip-forward" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Fader & Control Settings -->
+            <div class="bg-darkcard border border-slate-800/80 rounded-2xl p-5 shadow-xl space-y-5">
+                <h3 class="text-sm font-semibold text-slate-200 border-b border-slate-800 pb-2 flex items-center gap-2">
+                    <i data-lucide="sliders" class="w-4 h-4 text-brand-400"></i>
+                    コントロール設定
+                </h3>
+
+                <!-- Fade Duration -->
+                <div class="space-y-2">
+                    <div class="flex justify-between text-xs font-medium">
+                        <label for="fade-time" class="text-slate-300">フェード時間</label>
+                        <span id="fade-time-val" class="text-brand-400 font-mono">1.5 秒</span>
+                    </div>
+                    <input type="range" id="fade-time" min="0.1" max="5.0" step="0.1" value="1.5" class="w-full accent-brand-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+                    <div class="flex justify-between text-[10px] text-slate-500">
+                        <span>0.1s (即時)</span>
+                        <span>2.5s</span>
+                        <span>5.0s (ゆっくり)</span>
+                    </div>
+                </div>
+
+                <!-- Master Volume -->
+                <div class="space-y-2">
+                    <div class="flex justify-between text-xs font-medium">
+                        <label for="master-volume" class="text-slate-300 flex items-center gap-1">
+                            <i data-lucide="volume-2" class="w-3.5 h-3.5"></i> Master Volume
+                        </label>
+                        <span id="volume-val" class="text-brand-400 font-mono">80%</span>
+                    </div>
+                    <input type="range" id="master-volume" min="0" max="1" step="0.01" value="0.8" class="w-full accent-brand-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+                </div>
+            </div>
+
+            <!-- Controller & Keyboard Guide -->
+            <div class="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-4 text-xs space-y-2 text-slate-400">
+                <div class="font-semibold text-slate-300 flex items-center gap-1.5 mb-2">
+                    <i data-lucide="gamepad-2" class="w-4 h-4 text-brand-400"></i>
+                    操作ガイド（キーボード / メディアコントローラー）
+                </div>
+                <div class="grid grid-cols-2 gap-2 font-mono">
+                    <div class="flex justify-between bg-slate-800/60 p-2 rounded border border-slate-800">
+                        <span class="text-emerald-400 font-bold">Media Next</span>
+                        <span>次の曲へ (BGM1→2→3)</span>
+                    </div>
+                    <div class="flex justify-between bg-slate-800/60 p-2 rounded border border-slate-800">
+                        <span class="text-emerald-400 font-bold">Media Prev</span>
+                        <span>前の曲へ</span>
+                    </div>
+                    <div class="flex justify-between bg-slate-800/60 p-2 rounded border border-slate-800">
+                        <span class="text-brand-400 font-bold">W / E / R</span>
+                        <span>BGM 1 / 2 / 3 直接再生</span>
+                    </div>
+                    <div class="flex justify-between bg-slate-800/60 p-2 rounded border border-slate-800">
+                        <span class="text-rose-400 font-bold">S</span>
+                        <span>フェード停止</span>
+                    </div>
+                    <div class="flex justify-between bg-slate-800/60 p-2 rounded border border-slate-800">
+                        <span class="text-slate-200 font-bold">1 ~ 9, 0</span>
+                        <span>BGM 1〜10直接指定</span>
+                    </div>
+                    <div class="flex justify-between bg-slate-800/60 p-2 rounded border border-slate-800">
+                        <span class="text-slate-200 font-bold">Space</span>
+                        <span>再生/一時停止</span>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- Right Column: Track List & Drag Area -->
+        <section class="lg:col-span-2 flex flex-col space-y-4">
+
+            <!-- Drag & Drop Area -->
+            <div id="drop-zone" class="border-2 border-dashed border-slate-700 hover:border-brand-500/80 bg-slate-900/40 hover:bg-brand-500/5 transition rounded-2xl p-6 text-center cursor-pointer group">
+                <input type="file" id="file-input" multiple accept="audio/*,.mp3,.wav,.ogg,.flac,.aac,.m4a" class="hidden">
+                <div class="flex flex-col items-center justify-center space-y-2 pointer-events-none">
+                    <div class="p-3 bg-slate-800 group-hover:bg-brand-500/20 text-slate-400 group-hover:text-brand-400 rounded-full transition">
+                        <i data-lucide="upload-cloud" class="w-7 h-7"></i>
+                    </div>
+                    <p class="text-sm font-medium text-slate-200">
+                        音声ファイルをドラッグ＆ドロップ または <span class="text-brand-400 underline">ファイルを選択</span>
+                    </p>
+                    <p class="text-xs text-slate-400">
+                        対応形式: MP3, WAV, OGG, FLAC, AAC, M4A など
+                    </p>
+                </div>
+            </div>
+
+            <!-- Track List Card -->
+            <div class="bg-darkcard border border-slate-800/80 rounded-2xl flex-1 flex flex-col overflow-hidden shadow-xl">
+                <div class="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/40">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="list-music" class="w-5 h-5 text-brand-400"></i>
+                        <h3 class="font-semibold text-slate-200 text-sm">トラックリスト</h3>
+                        <span id="track-count" class="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full font-mono">0 トラック</span>
+                    </div>
+                    <span class="text-xs text-slate-400 hidden sm:inline">
+                        コントローラーの [次へ] ボタンで順次送り可能
+                    </span>
+                </div>
+
+                <!-- Scrollable Track Container -->
+                <div id="track-list" class="flex-1 overflow-y-auto p-3 space-y-2 max-h-[500px] min-h-[300px]">
+                    <!-- Empty State -->
+                    <div id="empty-state" class="h-full flex flex-col items-center justify-center py-12 text-center text-slate-500 space-y-3">
+                        <i data-lucide="disc-3" class="w-12 h-12 text-slate-600 animate-spin-slow"></i>
+                        <p class="text-sm">トラックが読み込まれていません</p>
+                        <p class="text-xs text-slate-600">音声ファイルまたはZIPを読み込んでください</p>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-5 right-5 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-800 border border-slate-700 text-slate-100 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 z-50 pointer-events-none">
+        <i data-lucide="info" id="toast-icon" class="w-5 h-5 text-brand-400"></i>
+        <span id="toast-msg" class="text-sm">メッセージ</span>
+    </div>
+
+    <!-- Application JavaScript Logic -->
     <script>
+        // --- State Management ---
         let audioCtx = null;
-        let playlist = []; // { name, file, buffer }
-        let activeSources = []; // 鳴っている音源とゲインを全て管理する配列
-        let currentPlayingIndex = -1;
-        let isInitialized = false;
+        let masterGainNode = null;
+        let analyserNode = null;
+        let silentAudioEl = null;
+        let wakeLock = null;
+        
+        let tracks = []; // { id, name, fileName, arrayBuffer, audioBuffer, shortcutKey, duration }
+        let currentTrackIndex = -1;
+        let activeSources = []; // Active source nodes tracking for crossfading
+        
+        let isPlaying = false;
+        let startTime = 0;
+        let pauseOffset = 0;
+        let animationFrameId = null;
+        let isFading = false;
 
-        const silentAudio = document.getElementById('silentAudio');
-        const audioFileInput = document.getElementById('audioFileInput');
-        const zipFileInput = document.getElementById('zipFileInput');
-        const exportZipBtn = document.getElementById('exportZipBtn');
-        const playlistContainer = document.getElementById('playlistContainer');
-        const emptyMessage = document.getElementById('emptyMessage');
-        const trackCountEl = document.getElementById('trackCount');
-        const currentTrackTitle = document.getElementById('currentTrackTitle');
-        const stopBtn = document.getElementById('stopBtn');
-        const testAudioBtn = document.getElementById('testAudioBtn');
-        const fadeDurationRange = document.getElementById('fadeDurationRange');
-        const fadeValue = document.getElementById('fadeValue');
-        const progressBar = document.getElementById('progressBar');
+        // --- DOM Elements ---
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const zipInput = document.getElementById('zip-input');
+        const trackListEl = document.getElementById('track-list');
+        const emptyState = document.getElementById('empty-state');
+        const trackCountEl = document.getElementById('track-count');
+        
+        const nowPlayingTitle = document.getElementById('now-playing-title');
+        const nowPlayingSub = document.getElementById('now-playing-sub');
+        const playerStatusBadge = document.getElementById('player-status-badge');
+        const statusDot = document.getElementById('status-dot');
+        const iconPlayMain = document.getElementById('icon-play-main');
+        const bgKeepaliveBadge = document.getElementById('bg-keepalive-badge');
+        
+        const progressBar = document.getElementById('progress-bar');
+        const progressContainer = document.getElementById('progress-container');
+        const timeCurrent = document.getElementById('time-current');
+        const timeDuration = document.getElementById('time-duration');
+        
+        const fadeTimeInput = document.getElementById('fade-time');
+        const fadeTimeVal = document.getElementById('fade-time-val');
+        const masterVolumeInput = document.getElementById('master-volume');
+        const volumeVal = document.getElementById('volume-val');
 
-        // AudioContext 初期化 & バックグラウンド維持起動
-        function initAudioContext() {
+        const btnExportZip = document.getElementById('btn-export-zip');
+        const btnTogglePlay = document.getElementById('btn-toggle-play');
+        const btnStop = document.getElementById('btn-stop');
+        const btnNext = document.getElementById('btn-next');
+        const btnPrev = document.getElementById('btn-prev');
+        const btnDemo = document.getElementById('btn-demo');
+        
+        const canvas = document.getElementById('visualizer');
+        const canvasCtx = canvas.getContext('2d');
+        const visualizerPlaceholder = document.getElementById('visualizer-placeholder');
+
+        // --- Key Mapping Helper ---
+        function getShortcutLabel(index) {
+            if (index === 0) return "W / 1";
+            if (index === 1) return "E / 2";
+            if (index === 2) return "R / 3";
+            if (index < 9) return (index + 1).toString();
+            if (index === 9) return "0";
+            return "";
+        }
+
+        // --- Initialization ---
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            initVisualizerCanvas();
+            updateTrackUI();
+            setupBackgroundKeepAlive();
+            setupMediaSessionHandlers();
+        });
+
+        // --- Background Keep-Alive & Audio Pipeline ---
+        function setupBackgroundKeepAlive() {
+            silentAudioEl = document.getElementById('silent-keepalive');
+            
+            // Create silent WAV data URI
+            const sampleRate = 8000;
+            const numSamples = sampleRate;
+            const buffer = new Uint8Array(44 + numSamples * 2);
+            const view = new DataView(buffer.buffer);
+
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + numSamples * 2, true);
+            writeString(view, 8, 'WAVE');
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, 1, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * 2, true);
+            view.setUint16(32, 2, true);
+            view.setUint16(34, 16, true);
+            writeString(view, 36, 'data');
+            view.setUint32(40, numSamples * 2, true);
+
+            const blob = new Blob([buffer], { type: 'audio/wav' });
+            silentAudioEl.src = URL.createObjectURL(blob);
+
+            document.addEventListener('visibilitychange', () => {
+                if (audioCtx && audioCtx.state === 'suspended' && isPlaying) {
+                    audioCtx.resume();
+                }
+                if (!document.hidden && isPlaying) {
+                    requestWakeLock();
+                }
+            });
+        }
+
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+
+        async function enableKeepAliveEngine() {
+            if (silentAudioEl && silentAudioEl.paused) {
+                try {
+                    await silentAudioEl.play();
+                    bgKeepaliveBadge.className = "text-[10px] px-2 py-0.5 rounded-full font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1";
+                    bgKeepaliveBadge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span><span>Media Control: Active</span>';
+                } catch(e) {
+                    console.warn("Silent audio keepalive failed:", e);
+                }
+            }
+            requestWakeLock();
+        }
+
+        async function requestWakeLock() {
+            if ('wakeLock' in navigator && !wakeLock) {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                } catch (err) {}
+            }
+        }
+
+        function getAudioContext() {
             if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContextClass();
+                
+                masterGainNode = audioCtx.createGain();
+                masterGainNode.gain.value = parseFloat(masterVolumeInput.value);
+                
+                analyserNode = audioCtx.createAnalyser();
+                analyserNode.fftSize = 64;
+                
+                masterGainNode.connect(analyserNode);
+                analyserNode.connect(audioCtx.destination);
             }
             if (audioCtx.state === 'suspended') {
                 audioCtx.resume();
             }
-            silentAudio.play().catch(() => {});
-            isInitialized = true;
+            enableKeepAliveEngine();
+            return audioCtx;
         }
 
-        // タブ切り替え・可視性変更時の自動復旧
-        document.addEventListener('visibilitychange', () => {
-            if (!document.hidden) {
-                if (audioCtx && audioCtx.state === 'suspended') {
-                    audioCtx.resume();
-                }
-                silentAudio.play().catch(() => {});
+        function initVisualizerCanvas() {
+            const resize = () => {
+                canvas.width = canvas.parentElement.clientWidth;
+                canvas.height = canvas.parentElement.clientHeight;
+            };
+            resize();
+            window.addEventListener('resize', resize);
+        }
+
+        // --- MediaSession Global Physical Media Controller Setup ---
+        function setupMediaSessionHandlers() {
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.setActionHandler('play', () => togglePlayPause());
+                navigator.mediaSession.setActionHandler('pause', () => togglePlayPause());
+                navigator.mediaSession.setActionHandler('stop', () => fadeOutCurrentTrack());
+                navigator.mediaSession.setActionHandler('nexttrack', () => playNextTrack());
+                navigator.mediaSession.setActionHandler('previoustrack', () => playPrevTrack());
             }
-        });
+        }
 
-        // フェード時間表示
-        fadeDurationRange.addEventListener('input', (e) => {
-            fadeValue.textContent = `${e.target.value}秒`;
-        });
-
-        // ファイル選択追加
-        audioFileInput.addEventListener('change', async (e) => {
-            const files = Array.from(e.target.files);
-            for (const file of files) {
-                await addTrackFromFile(file);
-            }
-            audioFileInput.value = '';
-        });
-
-        async function addTrackFromFile(file) {
-            initAudioContext();
-            try {
-                const arrayBuffer = await file.arrayBuffer();
-                const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-                playlist.push({
-                    name: file.name,
-                    file: file,
-                    buffer: audioBuffer
+        function updateMediaSessionMetadata(track) {
+            if ('mediaSession' in navigator && track) {
+                navigator.mediaSession.metadata = new MediaMetadata({
+                    title: track.name,
+                    artist: `BGM ${currentTrackIndex + 1}`,
+                    album: track.fileName,
                 });
-                renderPlaylist();
-            } catch (err) {
-                console.error('音声のデコードに失敗しました:', file.name, err);
-                alert(`「${file.name}」の読み込みに失敗しました。サポートされていない形式の可能性があります。`);
+                navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
             }
         }
 
-        // プレイリスト描画
-        function renderPlaylist() {
-            if (playlist.length === 0) {
-                emptyMessage.style.display = 'flex';
-                playlistContainer.innerHTML = '';
-                playlistContainer.appendChild(emptyMessage);
-                trackCountEl.textContent = '0 曲';
-                updateMediaSessionMetadata();
+        function playNextTrack() {
+            if (tracks.length === 0) return;
+            const nextIdx = (currentTrackIndex + 1) % tracks.length;
+            playTrack(nextIdx);
+        }
+
+        function playPrevTrack() {
+            if (tracks.length === 0) return;
+            const prevIdx = (currentTrackIndex - 1 + tracks.length) % tracks.length;
+            playTrack(prevIdx);
+        }
+
+        // --- Core Audio Controls ---
+
+        async function playTrack(index) {
+            if (index < 0 || index >= tracks.length) return;
+            const ctx = getAudioContext();
+
+            const track = tracks[index];
+            const fadeDuration = parseFloat(fadeTimeInput.value);
+
+            // 前の再生曲が存在していれば確実にフェードアウトさせて停止する
+            if (activeSources.length > 0) {
+                fadeOutActiveSources(fadeDuration);
+            }
+
+            currentTrackIndex = index;
+
+            try {
+                if (!track.audioBuffer) {
+                    showToast(`${track.name} をデコード中...`, 'info');
+                    track.audioBuffer = await ctx.decodeAudioData(track.arrayBuffer.slice(0));
+                }
+
+                const source = ctx.createBufferSource();
+                source.buffer = track.audioBuffer;
+
+                const gainNode = ctx.createGain();
+                const now = ctx.currentTime;
+
+                gainNode.gain.setValueAtTime(0, now);
+                gainNode.gain.linearRampToValueAtTime(1, now + fadeDuration);
+
+                source.connect(gainNode);
+                gainNode.connect(masterGainNode);
+
+                pauseOffset = 0;
+                source.start(now);
+                startTime = now;
+
+                const sourceObj = { source, gainNode, trackIndex: index };
+                activeSources.push(sourceObj);
+
+                isPlaying = true;
+                isFading = false;
+
+                source.onended = () => {
+                    const idx = activeSources.indexOf(sourceObj);
+                    if (idx !== -1) {
+                        activeSources.splice(idx, 1);
+                    }
+                    if (activeSources.length === 0 && isPlaying) {
+                        isPlaying = false;
+                        updatePlaybackStateUI();
+                    }
+                };
+
+                updateMediaSessionMetadata(track);
+                updatePlaybackStateUI();
+                startVisualizerAndProgress();
+                showToast(`[BGM ${index + 1}] ${track.name} 再生開始`, 'success');
+
+            } catch (err) {
+                console.error("Audio Decode Error:", err);
+                showToast("音声ファイルの再生に失敗しました", "error");
+            }
+        }
+
+        function fadeOutActiveSources(duration) {
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime;
+            
+            // 現在アクティブな全ノードを取り出し、リストをクリアする
+            const sourcesToFade = [...activeSources];
+            activeSources = [];
+
+            isFading = true;
+
+            sourcesToFade.forEach(({ source, gainNode }) => {
+                try {
+                    gainNode.gain.cancelScheduledValues(now);
+                    gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+                    gainNode.gain.linearRampToValueAtTime(0.0001, now + duration);
+
+                    // フェードアウト時間が経過した後に物理的に停止・切断する
+                    setTimeout(() => {
+                        try {
+                            source.stop();
+                            source.disconnect();
+                        } catch (e) {}
+                    }, duration * 1000 + 50);
+                } catch (e) {
+                    console.warn("Source cleanup warning:", e);
+                }
+            });
+        }
+
+        async function fadeOutCurrentTrack() {
+            if (!isPlaying || activeSources.length === 0) {
+                isPlaying = false;
+                updatePlaybackStateUI();
                 return;
             }
 
-            emptyMessage.style.display = 'none';
-            playlistContainer.innerHTML = '';
-            trackCountEl.textContent = `${playlist.length} 曲`;
+            const fadeDuration = parseFloat(fadeTimeInput.value);
+            fadeOutActiveSources(fadeDuration);
 
-            playlist.forEach((track, index) => {
-                const item = document.createElement('div');
-                const isPlaying = (currentPlayingIndex === index);
+            setTimeout(() => {
+                if (activeSources.length === 0) {
+                    isPlaying = false;
+                    isFading = false;
+                    updatePlaybackStateUI();
+                }
+            }, fadeDuration * 1000 + 100);
+        }
+
+        async function stopTrack(withFade = true) {
+            if (withFade) {
+                await fadeOutCurrentTrack();
+            } else {
+                activeSources.forEach(({ source }) => {
+                    try { source.stop(); source.disconnect(); } catch(e){}
+                });
+                activeSources = [];
+                isPlaying = false;
+                isFading = false;
+                updatePlaybackStateUI();
+            }
+            pauseOffset = 0;
+        }
+
+        function togglePlayPause() {
+            if (currentTrackIndex === -1 && tracks.length > 0) {
+                playTrack(0);
+                return;
+            }
+            if (currentTrackIndex === -1) return;
+
+            if (isPlaying) {
+                fadeOutCurrentTrack();
+            } else {
+                playTrack(currentTrackIndex);
+            }
+        }
+
+        // --- File Upload & ZIP Handling ---
+
+        async function handleFilesAdded(fileList) {
+            const validFiles = Array.from(fileList).filter(f => f.type.startsWith('audio/') || /\.(mp3|wav|ogg|flac|aac|m4a)$/i.test(f.name));
+            if (validFiles.length === 0) {
+                showToast("有効な音声ファイルが選択されていません", "error");
+                return;
+            }
+
+            showToast(`${validFiles.length} 個のファイルを読み込み中...`, "info");
+
+            for (let file of validFiles) {
+                const arrayBuffer = await file.arrayBuffer();
+                const assignedIndex = tracks.length;
                 
-                item.className = `flex items-center justify-between p-3 rounded-xl border transition ${
-                    isPlaying ? 'bg-cyan-950/40 border-cyan-500/50 shadow-lg shadow-cyan-950/50' : 'bg-slate-950/50 border-slate-800 hover:border-slate-700'
+                tracks.push({
+                    id: 'tr_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                    name: file.name.replace(/\.[^/.]+$/, ""),
+                    fileName: file.name,
+                    file: file,
+                    arrayBuffer: arrayBuffer,
+                    audioBuffer: null,
+                    shortcutKey: getShortcutLabel(assignedIndex),
+                    duration: 0
+                });
+            }
+
+            updateTrackUI();
+            showToast("ファイルをリストに追加しました", "success");
+        }
+
+        async function exportZip() {
+            if (tracks.length === 0) {
+                showToast("保存するトラックがありません", "error");
+                return;
+            }
+
+            showToast("ZIPアーカイブを作成中...", "info");
+            const zip = new JSZip();
+            const folder = zip.folder("bgm_pack");
+
+            tracks.forEach((track, idx) => {
+                const ext = track.fileName.includes('.') ? track.fileName.split('.').pop() : 'mp3';
+                const keyTag = track.shortcutKey ? `[${track.shortcutKey.replace(/\s*\/\s*/g, '_')}]_` : `${idx + 1}_`;
+                const filename = `${keyTag}${track.name}.${ext}`;
+                folder.file(filename, track.arrayBuffer);
+            });
+
+            const content = await zip.generateAsync({ type: "blob" });
+            saveAs(content, "bgm_collection.zip");
+            showToast("ZIPファイルのダウンロードを開始しました", "success");
+        }
+
+        async function importZip(file) {
+            if (!file) return;
+            showToast("ZIPを解凍中...", "info");
+
+            try {
+                const zip = new JSZip();
+                const zipContent = await zip.loadAsync(file);
+                const audioFiles = [];
+
+                zipContent.forEach((relativePath, zipEntry) => {
+                    if (!zipEntry.dir && /\.(mp3|wav|ogg|flac|aac|m4a)$/i.test(zipEntry.name)) {
+                        audioFiles.push(zipEntry);
+                    }
+                });
+
+                if (audioFiles.length === 0) {
+                    showToast("ZIP内に対象の音声ファイルが見つかりません", "error");
+                    return;
+                }
+
+                // Sort files by name to retain order
+                audioFiles.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+
+                for (let entry of audioFiles) {
+                    const buffer = await entry.async("arraybuffer");
+                    const cleanName = entry.name.split('/').pop();
+                    const nameWithoutExt = cleanName.replace(/^[\[\w\d_\]\s\-]+/, '').replace(/\.[^/.]+$/, "");
+                    
+                    const assignedIndex = tracks.length;
+
+                    tracks.push({
+                        id: 'tr_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                        name: nameWithoutExt || cleanName,
+                        fileName: cleanName,
+                        arrayBuffer: buffer,
+                        audioBuffer: null,
+                        shortcutKey: getShortcutLabel(assignedIndex),
+                        duration: 0
+                    });
+                }
+
+                updateTrackUI();
+                showToast("ZIPからトラックを復元しました", "success");
+            } catch (err) {
+                console.error(err);
+                showToast("ZIPファイルの読み込みに失敗しました", "error");
+            }
+        }
+
+        async function createDemoSynthSound() {
+            const ctx = getAudioContext();
+            const sampleRate = ctx.sampleRate;
+            const duration = 4.0;
+            const buffer = ctx.createBuffer(2, sampleRate * duration, sampleRate);
+            
+            for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
+                const data = buffer.getChannelData(channel);
+                for (let i = 0; i < buffer.length; i++) {
+                    const t = i / sampleRate;
+                    const freq = 440 * Math.pow(2, (Math.floor(t * 4) % 4 * 2) / 12);
+                    data[i] = Math.sin(2 * Math.PI * freq * t) * Math.exp(-3 * (t % 0.25));
+                }
+            }
+
+            const assignedIndex = tracks.length;
+
+            tracks.push({
+                id: 'tr_demo_' + Date.now(),
+                name: `Demo Chime BGM ${tracks.length + 1}`,
+                fileName: `demo_sound_${tracks.length + 1}.wav`,
+                arrayBuffer: null,
+                audioBuffer: buffer,
+                shortcutKey: getShortcutLabel(assignedIndex),
+                duration: duration
+            });
+
+            updateTrackUI();
+            showToast("テスト合成音BGMを作成しました", "success");
+        }
+
+        // --- UI Render & Updates ---
+
+        function updateTrackUI() {
+            trackCountEl.textContent = `${tracks.length} トラック`;
+            btnExportZip.disabled = tracks.length === 0;
+
+            if (tracks.length === 0) {
+                emptyState.classList.remove('hidden');
+                trackListEl.querySelectorAll('.track-item').forEach(el => el.remove());
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            trackListEl.innerHTML = '';
+
+            tracks.forEach((track, idx) => {
+                track.shortcutKey = getShortcutLabel(idx);
+                const isCurrent = idx === currentTrackIndex;
+                
+                const item = document.createElement('div');
+                item.className = `track-item flex items-center justify-between p-3 rounded-xl border transition cursor-pointer ${
+                    isCurrent && isPlaying
+                        ? 'bg-brand-500/10 border-brand-500/50 text-slate-100 shadow-md'
+                        : 'bg-slate-800/40 border-slate-800 hover:bg-slate-800/80 hover:border-slate-700 text-slate-300'
                 }`;
 
-                let shortcutBadge = '';
-                if (index === 0) shortcutBadge = '<span class="text-[10px] bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded ml-2 font-mono">W</span>';
-                if (index === 1) shortcutBadge = '<span class="text-[10px] bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded ml-2 font-mono">E</span>';
-                if (index === 2) shortcutBadge = '<span class="text-[10px] bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded ml-2 font-mono">R</span>';
-
                 item.innerHTML = `
-                    <div class="flex items-center gap-3 overflow-hidden">
-                        <span class="text-xs font-mono text-slate-500 w-6">#${index + 1}</span>
-                        <span class="font-medium text-sm truncate text-slate-200">${escapeHtml(track.name)}</span>
-                        ${shortcutBadge}
-                    </div>
-                    <div class="flex items-center gap-2 flex-shrink-0">
-                        <button onclick="playTrack(${index})" class="px-3 py-1.5 rounded-lg text-xs font-medium transition ${
-                            isPlaying ? 'bg-cyan-500 text-slate-950 font-bold' : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                    <div class="flex items-center gap-3 min-w-0 flex-1" onclick="playTrack(${idx})">
+                        <div class="flex-shrink-0 min-w-[2.25rem] px-1.5 h-7 rounded-lg font-mono font-bold text-xs flex items-center justify-center border ${
+                            track.shortcutKey 
+                                ? 'bg-slate-800 border-slate-600 text-brand-400' 
+                                : 'bg-slate-900 border-slate-800 text-slate-600'
                         }">
-                            ${isPlaying ? '再生中' : '再生'}
+                            ${track.shortcutKey || (idx + 1).toString()}
+                        </div>
+
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm font-semibold truncate ${isCurrent ? 'text-brand-400' : 'text-slate-200'}">
+                                ${escapeHtml(track.name)}
+                            </p>
+                            <p class="text-[11px] text-slate-500 truncate font-mono">
+                                ${escapeHtml(track.fileName)}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <button onclick="playTrack(${idx})" class="p-2 rounded-lg bg-slate-800 hover:bg-brand-500 hover:text-white transition text-slate-300">
+                            <i data-lucide="${isCurrent && isPlaying ? 'pause' : 'play'}" class="w-4 h-4"></i>
                         </button>
-                        <button onclick="removeTrack(${index})" class="text-slate-500 hover:text-rose-400 p-1.5 transition">✕</button>
+                        <button onclick="deleteTrack(${idx}, event)" class="p-2 rounded-lg bg-slate-800/50 hover:bg-rose-500/20 hover:text-rose-400 transition text-slate-500">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
                     </div>
                 `;
-                playlistContainer.appendChild(item);
+
+                trackListEl.appendChild(item);
             });
-            updateMediaSessionMetadata();
+
+            lucide.createIcons();
+        }
+
+        function updatePlaybackStateUI() {
+            if (currentTrackIndex >= 0 && currentTrackIndex < tracks.length) {
+                const track = tracks[currentTrackIndex];
+                nowPlayingTitle.textContent = track.name;
+                nowPlayingSub.textContent = `BGM ${currentTrackIndex + 1} / ショートキー: [ ${getShortcutLabel(currentTrackIndex) || 'None'} ]`;
+            } else {
+                nowPlayingTitle.textContent = "トラック未選択";
+                nowPlayingSub.textContent = "[W] [E] [R] または 物理コントローラーの[次へ]ボタンで再生";
+            }
+
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
+            }
+
+            if (isPlaying) {
+                playerStatusBadge.textContent = isFading ? "フェードアウト中" : "再生中";
+                playerStatusBadge.className = "px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand-500/20 text-brand-400 border border-brand-500/30";
+                statusDot.className = "w-2 h-2 rounded-full bg-brand-500 animate-ping";
+                iconPlayMain.setAttribute('data-lucide', 'pause');
+                visualizerPlaceholder.classList.add('hidden');
+            } else {
+                playerStatusBadge.textContent = "停止中";
+                playerStatusBadge.className = "px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-800 text-slate-400 border border-slate-700";
+                statusDot.className = "w-2 h-2 rounded-full bg-slate-600";
+                iconPlayMain.setAttribute('data-lucide', 'play');
+                visualizerPlaceholder.classList.remove('hidden');
+            }
+
+            updateTrackUI();
+            lucide.createIcons();
+        }
+
+        function deleteTrack(index, event) {
+            event.stopPropagation();
+            if (currentTrackIndex === index && isPlaying) {
+                stopTrack(false);
+            }
+            tracks.splice(index, 1);
+            if (currentTrackIndex >= tracks.length) {
+                currentTrackIndex = -1;
+            }
+            updatePlaybackStateUI();
+        }
+
+        // Visualizer & Progress Loop
+        function startVisualizerAndProgress() {
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+
+            const bufferLength = analyserNode ? analyserNode.frequencyBinCount : 0;
+            const dataArray = new Uint8Array(bufferLength);
+
+            function render() {
+                if (!isPlaying && !isFading) {
+                    canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+                    progressBar.style.width = '0%';
+                    timeCurrent.textContent = "00:00";
+                    return;
+                }
+
+                animationFrameId = requestAnimationFrame(render);
+
+                const primarySourceObj = activeSources[activeSources.length - 1];
+                if (primarySourceObj && primarySourceObj.source.buffer) {
+                    const totalDur = primarySourceObj.source.buffer.duration;
+                    const elapsed = audioCtx.currentTime - startTime;
+                    const pct = Math.min((elapsed / totalDur) * 100, 100);
+                    
+                    progressBar.style.width = `${pct}%`;
+                    timeCurrent.textContent = formatTime(elapsed);
+                    timeDuration.textContent = formatTime(totalDur);
+                }
+
+                if (analyserNode && !document.hidden) {
+                    analyserNode.getByteFrequencyData(dataArray);
+                    canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+
+                    const barWidth = (canvas.width / bufferLength) * 2;
+                    let x = 0;
+
+                    for (let i = 0; i < bufferLength; i++) {
+                        const barHeight = (dataArray[i] / 255) * canvas.height;
+
+                        const gradient = canvasCtx.createLinearGradient(0, canvas.height, 0, 0);
+                        gradient.addColorStop(0, '#16a34a');
+                        gradient.addColorStop(1, '#4ade80');
+
+                        canvasCtx.fillStyle = gradient;
+                        canvasCtx.fillRect(x, canvas.height - barHeight, barWidth - 1, barHeight);
+
+                        x += barWidth;
+                    }
+                }
+            }
+
+            render();
+        }
+
+        function formatTime(sec) {
+            if (isNaN(sec) || sec < 0) return "00:00";
+            const m = Math.floor(sec / 60);
+            const s = Math.floor(sec % 60);
+            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
         }
 
         function escapeHtml(str) {
-            return str.replace(/[&<>'"]/g, 
-                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
-            );
-        }
-
-        window.removeTrack = function(index) {
-            if (currentPlayingIndex === index) {
-                stopMusic();
-            } else if (currentPlayingIndex > index) {
-                currentPlayingIndex--;
-            }
-            playlist.splice(index, 1);
-            renderPlaylist();
-        };
-
-        document.getElementById('clearPlaylistBtn').addEventListener('click', () => {
-            if (confirm('プレイリストを全てクリアしますか？')) {
-                stopMusic();
-                playlist = [];
-                renderPlaylist();
-            }
-        });
-
-        // 音楽再生（現在鳴っている音源を全て確実にフェードアウトさせて排他制御する）
-        window.playTrack = function(index) {
-            if (!playlist[index]) return;
-            initAudioContext();
-
-            const fadeDuration = parseFloat(fadeDurationRange.value);
-            const now = audioCtx.currentTime;
-
-            // 既にアクティブな音源が少しでもあれば、すべてフェードアウトさせて停止予約
-            if (activeSources.length > 0) {
-                const oldSources = [...activeSources];
-                activeSources = []; // リストをクリア
-
-                oldSources.forEach(item => {
-                    try {
-                        item.gainNode.gain.cancelScheduledValues(now);
-                        item.gainNode.gain.setValueAtTime(item.gainNode.gain.value, now);
-                        item.gainNode.gain.linearRampToValueAtTime(0, now + fadeDuration);
-                        setTimeout(() => {
-                            try { item.source.stop(); item.source.disconnect(); } catch(e){}
-                        }, fadeDuration * 1000 + 50);
-                    } catch(e) {}
-                });
-            }
-
-            currentPlayingIndex = index;
-            renderPlaylist();
-
-            const track = playlist[index];
-            currentTrackTitle.textContent = track.name;
-
-            // 新しいソースとゲインノードを作成
-            const source = audioCtx.createBufferSource();
-            source.buffer = track.buffer;
-            source.loop = true;
-
-            const gainNode = audioCtx.createGain();
-            gainNode.gain.setValueAtTime(0, now);
-            gainNode.gain.linearRampToValueAtTime(1.0, now + fadeDuration);
-
-            source.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-
-            source.start(now);
-
-            const activeItem = { source, gainNode, index };
-            activeSources.push(activeItem);
-
-            source.onended = () => {
-                // 終了した音源を配列から除外
-                activeSources = activeSources.filter(item => item.source !== source);
-                if (currentPlayingIndex === index && activeSources.length === 0) {
-                    currentPlayingIndex = -1;
-                    currentTrackTitle.textContent = '停止中';
-                    renderPlaylist();
-                }
-            };
-        };
-
-        // 停止（現在アクティブな音源をすべてフェードアウト）
-        function stopMusic() {
-            if (activeSources.length === 0) return;
-            initAudioContext();
-
-            const fadeDuration = parseFloat(fadeDurationRange.value);
-            const now = audioCtx.currentTime;
-
-            const sourcesToStop = [...activeSources];
-            activeSources = [];
-
-            sourcesToStop.forEach(item => {
-                try {
-                    item.gainNode.gain.cancelScheduledValues(now);
-                    item.gainNode.gain.setValueAtTime(item.gainNode.gain.value, now);
-                    item.gainNode.gain.linearRampToValueAtTime(0, now + fadeDuration);
-
-                    setTimeout(() => {
-                        try {
-                            item.source.stop();
-                            item.source.disconnect();
-                        } catch(e) {}
-                    }, fadeDuration * 1000 + 50);
-                } catch(e) {}
+            return str.replace(/[&<>"']/g, function(m) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
             });
-
-            currentPlayingIndex = -1;
-            currentTrackTitle.textContent = '停止中';
-            renderPlaylist();
         }
 
-        stopBtn.addEventListener('click', stopMusic);
+        function showToast(msg, type = 'info') {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toast-msg');
+            const toastIcon = document.getElementById('toast-icon');
 
-        // キーボード操作 (W, E, R, S, Space)
-        window.addEventListener('keydown', (e) => {
-            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+            toastMsg.textContent = msg;
 
-            const key = e.key.toUpperCase();
-            if (key === 'W') {
-                if (playlist.length > 0) playTrack(0);
-            } else if (key === 'E') {
-                if (playlist.length > 1) playTrack(1);
-            } else if (key === 'R') {
-                if (playlist.length > 2) playTrack(2);
-            } else if (key === 'S') {
-                stopMusic();
-            } else if (e.code === 'Space') {
-                e.preventDefault();
-                if (currentPlayingIndex !== -1) {
-                    stopMusic();
-                } else if (playlist.length > 0) {
-                    playTrack(0);
-                }
+            if (type === 'error') {
+                toastIcon.setAttribute('data-lucide', 'alert-circle');
+                toastIcon.className = "w-5 h-5 text-rose-400";
+            } else if (type === 'success') {
+                toastIcon.setAttribute('data-lucide', 'check-circle');
+                toastIcon.className = "w-5 h-5 text-brand-400";
+            } else {
+                toastIcon.setAttribute('data-lucide', 'info');
+                toastIcon.className = "w-5 h-5 text-emerald-400";
             }
-        });
+            lucide.createIcons();
 
-        // ZIPエクスポート
-        exportZipBtn.addEventListener('click', async () => {
-            if (playlist.length === 0) {
-                alert('エクスポートする音声ファイルがありません。');
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        // --- Event Listeners & Hardware Key Handlers ---
+
+        window.addEventListener('keydown', (e) => {
+            if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+
+            const code = e.code;
+            const key = e.key.toLowerCase();
+
+            // Hardware Media Key Next Track / Previous Track Handling
+            if (code === 'MediaTrackNext' || key === 'mediatracknext') {
+                e.preventDefault();
+                playNextTrack();
                 return;
             }
-            const zip = new JSZip();
-            for (const track of playlist) {
-                zip.file(track.name, track.file);
-            }
-            const content = await zip.generateAsync({ type: 'blob' });
-            saveAs(content, 'bgm_playlist.zip');
-        });
 
-        // ZIPインポート
-        zipFileInput.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            initAudioContext();
-            try {
-                const zip = new JSZip();
-                const contents = await zip.loadAsync(file);
-                for (const [filename, zipEntry] of Object.entries(contents.files)) {
-                    if (zipEntry.dir) continue;
-                    const blob = await zipEntry.async('blob');
-                    const audioFile = new File([blob], filename, { type: blob.type || 'audio/mpeg' });
-                    await addTrackFromFile(audioFile);
+            if (code === 'MediaTrackPrevious' || key === 'mediatrackprevious') {
+                e.preventDefault();
+                playPrevTrack();
+                return;
+            }
+
+            if (code === 'MediaPlayPause' || code === 'MediaPlay' || code === 'MediaPause') {
+                e.preventDefault();
+                togglePlayPause();
+                return;
+            }
+
+            if (code === 'MediaStop') {
+                e.preventDefault();
+                fadeOutCurrentTrack();
+                return;
+            }
+
+            // W -> BGM 1
+            if (key === 'w') {
+                e.preventDefault();
+                if (tracks.length > 0) playTrack(0);
+                else showToast("BGM 1 がリストにありません", "info");
+                return;
+            }
+
+            // E -> BGM 2
+            if (key === 'e') {
+                e.preventDefault();
+                if (tracks.length > 1) playTrack(1);
+                else showToast("BGM 2 がリストにありません", "info");
+                return;
+            }
+
+            // R -> BGM 3
+            if (key === 'r') {
+                e.preventDefault();
+                if (tracks.length > 2) playTrack(2);
+                else showToast("BGM 3 がリストにありません", "info");
+                return;
+            }
+
+            // S Key -> Fade Out Stop
+            if (key === 's') {
+                e.preventDefault();
+                fadeOutCurrentTrack();
+                showToast("Sキー: フェード停止", "info");
+                return;
+            }
+
+            // Space Key -> Toggle Play / Pause
+            if (code === 'Space') {
+                e.preventDefault();
+                togglePlayPause();
+                return;
+            }
+
+            // Number Keys 1 - 9, 0
+            if (/^[0-9]$/.test(key)) {
+                e.preventDefault();
+                const targetIdx = key === '0' ? 9 : parseInt(key, 10) - 1;
+                if (tracks.length > targetIdx) {
+                    playTrack(targetIdx);
+                } else {
+                    showToast(`BGM [${key}] はまだリストに割り当てられていません`, "info");
                 }
-                alert('ZIPからプレイリストを読み込みました！');
-            } catch (err) {
-                console.error(err);
-                alert('ZIPファイルの読み込みに失敗しました。');
             }
-            zipFileInput.value = '';
         });
 
-        // テスト音声生成（デモ用）
-        testAudioBtn.addEventListener('click', async () => {
-            initAudioContext();
-            const sampleRate = audioCtx.sampleRate;
-            const createBeepBuffer = (freq, duration) => {
-                const buffer = audioCtx.createBuffer(1, sampleRate * duration, sampleRate);
-                const data = buffer.getChannelData(0);
-                for (let i = 0; i < buffer.length; i++) {
-                    data[i] = Math.sin(2 * Math.PI * freq * i / sampleRate) * Math.exp(-i / (sampleRate * 0.5));
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('border-brand-500', 'bg-brand-500/10');
+        });
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('border-brand-500', 'bg-brand-500/10');
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-brand-500', 'bg-brand-500/10');
+            if (e.dataTransfer.files.length > 0) {
+                handleFilesAdded(e.dataTransfer.files);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFilesAdded(e.target.files);
+            }
+        });
+
+        zipInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                importZip(e.target.files[0]);
+            }
+        });
+
+        btnExportZip.addEventListener('click', exportZip);
+        btnStop.addEventListener('click', () => fadeOutCurrentTrack());
+        btnTogglePlay.addEventListener('click', togglePlayPause);
+        btnNext.addEventListener('click', playNextTrack);
+        btnPrev.addEventListener('click', playPrevTrack);
+        btnDemo.addEventListener('click', createDemoSynthSound);
+        
+        const btnClearEl = document.getElementById('btn-clear');
+        if (btnClearEl) {
+            btnClearEl.addEventListener('click', () => {
+                if (confirm("全てのトラックを削除しますか？")) {
+                    stopTrack(false);
+                    tracks = [];
+                    currentTrackIndex = -1;
+                    updatePlaybackStateUI();
+                    showToast("全てのトラックを消去しました", "info");
                 }
-                return buffer;
-            };
-
-            playlist.push({
-                name: `BGM_1 (テスト440Hz)`,
-                file: new File([], `bgm_1.wav`),
-                buffer: createBeepBuffer(440, 5)
             });
-            playlist.push({
-                name: `BGM_2 (テスト880Hz)`,
-                file: new File([], `bgm_2.wav`),
-                buffer: createBeepBuffer(880, 5)
-            });
-            playlist.push({
-                name: `BGM_3 (テスト1320Hz)`,
-                file: new File([], `bgm_3.wav`),
-                buffer: createBeepBuffer(1320, 5)
-            });
-
-            renderPlaylist();
-            alert('テスト用の3曲（BGM1, BGM2, BGM3）を追加しました！W/E/Rキーでお試しください。');
-        });
-
-        // MediaSession API 連携（物理メディアキー・ヘッドセット・コントローラー対応）
-        function updateMediaSessionMetadata() {
-            if (!('mediaSession' in navigator)) return;
-
-            if (playlist.length > 0 && currentPlayingIndex !== -1) {
-                navigator.mediaSession.metadata = new MediaMetadata({
-                    title: playlist[currentPlayingIndex].name,
-                    artist: 'BGM Master Player',
-                    album: 'Custom Playlist'
-                });
-            } else {
-                navigator.mediaSession.metadata = new MediaMetadata({
-                    title: '停止中',
-                    artist: 'BGM Master Player',
-                    album: 'Custom Playlist'
-                });
-            }
         }
 
-        if ('mediaSession' in navigator) {
-            navigator.mediaSession.setActionHandler('play', () => {
-                if (currentPlayingIndex === -1 && playlist.length > 0) {
-                    playTrack(0);
-                }
-            });
-            navigator.mediaSession.setActionHandler('pause', stopMusic);
-            navigator.mediaSession.setActionHandler('stop', stopMusic);
-            
-            // 次の曲ボタンで BGM1 → BGM2 → BGM3 と順番にループ切替
-            navigator.mediaSession.setActionHandler('nexttrack', () => {
-                if (playlist.length === 0) return;
-                const nextIndex = (currentPlayingIndex + 1) % playlist.length;
-                playTrack(nextIndex);
-            });
-            
-            navigator.mediaSession.setActionHandler('previoustrack', () => {
-                if (playlist.length === 0) return;
-                const prevIndex = (currentPlayingIndex - 1 + playlist.length) % playlist.length;
-                playTrack(prevIndex);
-            });
-        }
+        fadeTimeInput.addEventListener('input', (e) => {
+            fadeTimeVal.textContent = `${parseFloat(e.target.value).toFixed(1)} 秒`;
+        });
+
+        masterVolumeInput.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            volumeVal.textContent = `${Math.round(val * 100)}%`;
+            if (masterGainNode) {
+                masterGainNode.gain.setValueAtTime(val, audioCtx.currentTime);
+            }
+        });
+
     </script>
 </body>
 </html>
