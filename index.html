@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BGM Master Player Pro for GitHub Pages</title>
+    <title>BGM Master Player Pro - MediaSession & Physical Controller Ready</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
@@ -41,7 +41,7 @@
 </head>
 <body class="bg-darkbg text-slate-100 min-h-screen flex flex-col font-sans antialiased selection:bg-brand-500 selection:text-white">
 
-    <!-- Hidden HTML5 Audio Element for Background Wakeup & Keep-Alive -->
+    <!-- Hidden HTML5 Audio Element for Background Keep-Alive & OS Media Keys Binding -->
     <audio id="silent-keepalive" loop style="display:none;"></audio>
 
     <!-- Header -->
@@ -56,12 +56,12 @@
                         <h1 class="text-xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
                             BGM Master Player Pro
                         </h1>
-                        <span id="bg-keepalive-badge" class="text-[10px] px-2 py-0.5 rounded-full font-mono bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1" title="バックグラウンド再生保護機能">
+                        <span id="bg-keepalive-badge" class="text-[10px] px-2 py-0.5 rounded-full font-mono bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1" title="バックグラウンド再生・物理コントローラー連携機能">
                             <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
-                            <span>Background Engine: Ready</span>
+                            <span>Media Control: Standby</span>
                         </span>
                     </div>
-                    <p class="text-xs text-slate-400">GitHub Pages / Web App • Quick Shortcuts: W (BGM1), E (BGM2), R (BGM3), S (Stop)</p>
+                    <p class="text-xs text-slate-400">GitHub Pages / Web App • BGM ShortKeys: W (BGM1), E (BGM2), R (BGM3) | Media Key Next: Track Forward</p>
                 </div>
             </div>
 
@@ -88,14 +88,13 @@
         </div>
     </header>
 
-    <!-- Security & OS Restriction Info Banner -->
+    <!-- OS Restriction & Physical Controller Banner -->
     <div class="bg-indigo-950/60 border-b border-indigo-800/50 px-4 py-2.5 text-xs text-indigo-200">
         <div class="max-w-7xl mx-auto flex items-start sm:items-center gap-2">
-            <i data-lucide="shield-alert" class="w-4 h-4 text-indigo-400 flex-shrink-0 mt-0.5 sm:mt-0"></i>
+            <i data-lucide="radio-receiver" class="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5 sm:mt-0"></i>
             <div>
-                <span class="font-bold text-indigo-300">バックグラウンドでの操作に関する仕様制限：</span>
-                ブラウザおよびOSのセキュリティ仕様（キーロガー防止）により、非アクティブ（バックグラウンド）時は『W』『E』等の直接文字キーの検知が禁止されます。
-                バックグラウンド再生中は<span class="text-white font-semibold underline">OS / キーボードのメディアキー（再生/一時停止、曲送り/曲戻し）</span>にて大域制御（MediaSession）が可能です。
+                <span class="font-bold text-emerald-300">物理メディアコントローラー / メディアキー対応：</span>
+                キーボードやBluetoothメディアコントローラーの『次の曲 (Next Track)』ボタンを押すと、リスト順（BGM1 → BGM2 → BGM3 ...）にフェード切り替え再生されます。
             </div>
         </div>
     </div>
@@ -124,7 +123,7 @@
                         トラック未選択
                     </h2>
                     <p id="now-playing-sub" class="text-xs text-slate-400 mt-1 truncate">
-                        [W] [E] [R] キー または リストから再生してください
+                        [W] [E] [R] または 物理コントローラーの[次へ]ボタンで再生
                     </p>
                 </div>
 
@@ -146,12 +145,18 @@
                 </div>
 
                 <!-- Global Play Controls -->
-                <div class="flex items-center justify-center gap-4 pt-2">
+                <div class="flex items-center justify-center gap-3 pt-2">
+                    <button id="btn-prev" title="前の曲" class="p-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-full border border-slate-700 transition active:scale-95 flex items-center justify-center">
+                        <i data-lucide="skip-back" class="w-5 h-5"></i>
+                    </button>
                     <button id="btn-stop" title="フェードアウト停止 (S)" class="p-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-full border border-rose-500/20 transition active:scale-95 flex items-center justify-center">
                         <i data-lucide="square" class="w-5 h-5"></i>
                     </button>
                     <button id="btn-toggle-play" title="再生 / 一時停止 (Space)" class="p-4 bg-brand-500 hover:bg-brand-600 text-white rounded-full shadow-lg shadow-brand-500/30 transition active:scale-95 flex items-center justify-center">
                         <i data-lucide="play" class="w-6 h-6 fill-current" id="icon-play-main"></i>
+                    </button>
+                    <button id="btn-next" title="次の曲 (Media Key Next)" class="p-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-full border border-slate-700 transition active:scale-95 flex items-center justify-center">
+                        <i data-lucide="skip-forward" class="w-5 h-5"></i>
                     </button>
                 </div>
             </div>
@@ -189,24 +194,24 @@
                 </div>
             </div>
 
-            <!-- Keyboard Shortcuts Guide -->
+            <!-- Controller & Keyboard Guide -->
             <div class="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-4 text-xs space-y-2 text-slate-400">
                 <div class="font-semibold text-slate-300 flex items-center gap-1.5 mb-2">
-                    <i data-lucide="keyboard" class="w-4 h-4 text-brand-400"></i>
-                    ショートカットキー割り当て
+                    <i data-lucide="gamepad-2" class="w-4 h-4 text-brand-400"></i>
+                    操作ガイド（キーボード / メディアコントローラー）
                 </div>
                 <div class="grid grid-cols-2 gap-2 font-mono">
                     <div class="flex justify-between bg-slate-800/60 p-2 rounded border border-slate-800">
-                        <span class="text-brand-400 font-bold">W</span>
-                        <span>BGM 1 再生</span>
+                        <span class="text-emerald-400 font-bold">Media Next</span>
+                        <span>次の曲へ (BGM1→2→3)</span>
                     </div>
                     <div class="flex justify-between bg-slate-800/60 p-2 rounded border border-slate-800">
-                        <span class="text-brand-400 font-bold">E</span>
-                        <span>BGM 2 再生</span>
+                        <span class="text-emerald-400 font-bold">Media Prev</span>
+                        <span>前の曲へ</span>
                     </div>
                     <div class="flex justify-between bg-slate-800/60 p-2 rounded border border-slate-800">
-                        <span class="text-brand-400 font-bold">R</span>
-                        <span>BGM 3 再生</span>
+                        <span class="text-brand-400 font-bold">W / E / R</span>
+                        <span>BGM 1 / 2 / 3 直接再生</span>
                     </div>
                     <div class="flex justify-between bg-slate-800/60 p-2 rounded border border-slate-800">
                         <span class="text-rose-400 font-bold">S</span>
@@ -214,11 +219,11 @@
                     </div>
                     <div class="flex justify-between bg-slate-800/60 p-2 rounded border border-slate-800">
                         <span class="text-slate-200 font-bold">1 ~ 9, 0</span>
-                        <span>BGM 1〜10再生</span>
+                        <span>BGM 1〜10直接指定</span>
                     </div>
                     <div class="flex justify-between bg-slate-800/60 p-2 rounded border border-slate-800">
                         <span class="text-slate-200 font-bold">Space</span>
-                        <span>一時停止/再開</span>
+                        <span>再生/一時停止</span>
                     </div>
                 </div>
             </div>
@@ -253,7 +258,7 @@
                         <span id="track-count" class="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full font-mono">0 トラック</span>
                     </div>
                     <span class="text-xs text-slate-400 hidden sm:inline">
-                        W=1曲目 / E=2曲目 / R=3曲目 / S=停止
+                        コントローラーの [次へ] ボタンで順次送り可能
                     </span>
                 </div>
 
@@ -325,8 +330,10 @@
         const btnExportZip = document.getElementById('btn-export-zip');
         const btnTogglePlay = document.getElementById('btn-toggle-play');
         const btnStop = document.getElementById('btn-stop');
+        const btnNext = document.getElementById('btn-next');
+        const btnPrev = document.getElementById('btn-prev');
         const btnDemo = document.getElementById('btn-demo');
-        const btnClear = document.getElementById('btn-clear');
+        const btnClear = document.getElementById('btnClear');
         
         const canvas = document.getElementById('visualizer');
         const canvasCtx = canvas.getContext('2d');
@@ -348,19 +355,19 @@
             initVisualizerCanvas();
             updateTrackUI();
             setupBackgroundKeepAlive();
+            setupMediaSessionHandlers();
         });
 
         // --- Background Keep-Alive & Audio Pipeline ---
         function setupBackgroundKeepAlive() {
             silentAudioEl = document.getElementById('silent-keepalive');
             
-            // Create silent audio data URI to keep browser process active during backgrounding
+            // Create silent WAV data URI
             const sampleRate = 8000;
             const numSamples = sampleRate;
             const buffer = new Uint8Array(44 + numSamples * 2);
             const view = new DataView(buffer.buffer);
 
-            /* RIFF header */
             writeString(view, 0, 'RIFF');
             view.setUint32(4, 36 + numSamples * 2, true);
             writeString(view, 8, 'WAVE');
@@ -378,7 +385,6 @@
             const blob = new Blob([buffer], { type: 'audio/wav' });
             silentAudioEl.src = URL.createObjectURL(blob);
 
-            // Re-resume AudioContext on tab visibility switches
             document.addEventListener('visibilitychange', () => {
                 if (audioCtx && audioCtx.state === 'suspended' && isPlaying) {
                     audioCtx.resume();
@@ -400,7 +406,7 @@
                 try {
                     await silentAudioEl.play();
                     bgKeepaliveBadge.className = "text-[10px] px-2 py-0.5 rounded-full font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1";
-                    bgKeepaliveBadge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span><span>Background Engine: Active</span>';
+                    bgKeepaliveBadge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span><span>Media Control: Active</span>';
                 } catch(e) {
                     console.warn("Silent audio keepalive failed:", e);
                 }
@@ -446,32 +452,38 @@
             window.addEventListener('resize', resize);
         }
 
-        // --- MediaSession Global Controls Handler ---
-        function updateMediaSession(track) {
-            if ('mediaSession' in navigator && track) {
-                navigator.mediaSession.metadata = new MediaMetadata({
-                    title: track.name,
-                    artist: 'BGM Master Player',
-                    album: track.fileName,
-                });
-
-                // Set up global OS action handlers for media keys
+        // --- MediaSession Global Physical Media Controller Setup ---
+        function setupMediaSessionHandlers() {
+            if ('mediaSession' in navigator) {
                 navigator.mediaSession.setActionHandler('play', () => togglePlayPause());
                 navigator.mediaSession.setActionHandler('pause', () => togglePlayPause());
                 navigator.mediaSession.setActionHandler('stop', () => fadeOutCurrentTrack());
-                navigator.mediaSession.setActionHandler('nexttrack', () => {
-                    if (tracks.length > 0) {
-                        const nextIdx = (currentTrackIndex + 1) % tracks.length;
-                        playTrack(nextIdx);
-                    }
-                });
-                navigator.mediaSession.setActionHandler('previoustrack', () => {
-                    if (tracks.length > 0) {
-                        const prevIdx = (currentTrackIndex - 1 + tracks.length) % tracks.length;
-                        playTrack(prevIdx);
-                    }
-                });
+                navigator.mediaSession.setActionHandler('nexttrack', () => playNextTrack());
+                navigator.mediaSession.setActionHandler('previoustrack', () => playPrevTrack());
             }
+        }
+
+        function updateMediaSessionMetadata(track) {
+            if ('mediaSession' in navigator && track) {
+                navigator.mediaSession.metadata = new MediaMetadata({
+                    title: track.name,
+                    artist: `BGM ${currentTrackIndex + 1}`,
+                    album: track.fileName,
+                });
+                navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
+            }
+        }
+
+        function playNextTrack() {
+            if (tracks.length === 0) return;
+            const nextIdx = (currentTrackIndex + 1) % tracks.length;
+            playTrack(nextIdx);
+        }
+
+        function playPrevTrack() {
+            if (tracks.length === 0) return;
+            const prevIdx = (currentTrackIndex - 1 + tracks.length) % tracks.length;
+            playTrack(prevIdx);
         }
 
         // --- Core Audio Controls ---
@@ -528,10 +540,10 @@
                     }
                 };
 
-                updateMediaSession(track);
+                updateMediaSessionMetadata(track);
                 updatePlaybackStateUI();
                 startVisualizerAndProgress();
-                showToast(`[${getShortcutLabel(index) || '-'}] ${track.name} 再生開始`, 'success');
+                showToast(`[BGM ${index + 1}] ${track.name} 再生開始`, 'success');
 
             } catch (err) {
                 console.error("Audio Decode Error:", err);
@@ -682,6 +694,9 @@
                     return;
                 }
 
+                // Sort files by name to retain order
+                audioFiles.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+
                 for (let entry of audioFiles) {
                     const buffer = await entry.async("arraybuffer");
                     const cleanName = entry.name.split('/').pop();
@@ -772,7 +787,7 @@
                                 ? 'bg-slate-800 border-slate-600 text-brand-400' 
                                 : 'bg-slate-900 border-slate-800 text-slate-600'
                         }">
-                            ${track.shortcutKey || '-'}
+                            ${track.shortcutKey || (idx + 1).toString()}
                         </div>
 
                         <div class="min-w-0 flex-1">
@@ -805,10 +820,14 @@
             if (currentTrackIndex >= 0 && currentTrackIndex < tracks.length) {
                 const track = tracks[currentTrackIndex];
                 nowPlayingTitle.textContent = track.name;
-                nowPlayingSub.textContent = `キー [ ${getShortcutLabel(currentTrackIndex) || 'None'} ] で指定中`;
+                nowPlayingSub.textContent = `BGM ${currentTrackIndex + 1} / ショートキー: [ ${getShortcutLabel(currentTrackIndex) || 'None'} ]`;
             } else {
                 nowPlayingTitle.textContent = "トラック未選択";
-                nowPlayingSub.textContent = "[W] [E] [R] キー または リストから再生してください";
+                nowPlayingSub.textContent = "[W] [E] [R] または 物理コントローラーの[次へ]ボタンで再生";
+            }
+
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
             }
 
             if (isPlaying) {
@@ -935,12 +954,38 @@
             }, 3000);
         }
 
-        // --- Event Listeners & Keyboard Shortcuts ---
+        // --- Event Listeners & Hardware Key Handlers ---
 
         window.addEventListener('keydown', (e) => {
             if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
 
+            const code = e.code;
             const key = e.key.toLowerCase();
+
+            // Hardware Media Key Next Track / Previous Track Handling
+            if (code === 'MediaTrackNext' || key === 'mediatracknext') {
+                e.preventDefault();
+                playNextTrack();
+                return;
+            }
+
+            if (code === 'MediaTrackPrevious' || key === 'mediatrackprevious') {
+                e.preventDefault();
+                playPrevTrack();
+                return;
+            }
+
+            if (code === 'MediaPlayPause' || code === 'MediaPlay' || code === 'MediaPause') {
+                e.preventDefault();
+                togglePlayPause();
+                return;
+            }
+
+            if (code === 'MediaStop') {
+                e.preventDefault();
+                fadeOutCurrentTrack();
+                return;
+            }
 
             // W -> BGM 1
             if (key === 'w') {
@@ -975,7 +1020,7 @@
             }
 
             // Space Key -> Toggle Play / Pause
-            if (e.code === 'Space') {
+            if (code === 'Space') {
                 e.preventDefault();
                 togglePlayPause();
                 return;
@@ -1024,16 +1069,22 @@
         btnExportZip.addEventListener('click', exportZip);
         btnStop.addEventListener('click', () => fadeOutCurrentTrack());
         btnTogglePlay.addEventListener('click', togglePlayPause);
+        btnNext.addEventListener('click', playNextTrack);
+        btnPrev.addEventListener('click', playPrevTrack);
         btnDemo.addEventListener('click', createDemoSynthSound);
-        btnClear.addEventListener('click', () => {
-            if (confirm("全てのトラックを削除しますか？")) {
-                stopTrack(false);
-                tracks = [];
-                currentTrackIndex = -1;
-                updatePlaybackStateUI();
-                showToast("全てのトラックを消去しました", "info");
-            }
-        });
+        
+        const btnClearEl = document.getElementById('btn-clear');
+        if (btnClearEl) {
+            btnClearEl.addEventListener('click', () => {
+                if (confirm("全てのトラックを削除しますか？")) {
+                    stopTrack(false);
+                    tracks = [];
+                    currentTrackIndex = -1;
+                    updatePlaybackStateUI();
+                    showToast("全てのトラックを消去しました", "info");
+                }
+            });
+        }
 
         fadeTimeInput.addEventListener('input', (e) => {
             fadeTimeVal.textContent = `${parseFloat(e.target.value).toFixed(1)} 秒`;
