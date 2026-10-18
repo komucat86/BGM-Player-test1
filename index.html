@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BGM Master Player Pro for GAS</title>
+    <title>BGM Master Player Pro for GitHub Pages</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
@@ -41,7 +41,7 @@
 </head>
 <body class="bg-darkbg text-slate-100 min-h-screen flex flex-col font-sans antialiased selection:bg-brand-500 selection:text-white">
 
-    <!-- Hidden Audio Element for Background Wakeup & Keep-Alive -->
+    <!-- Hidden HTML5 Audio Element for Background Wakeup & Keep-Alive -->
     <audio id="silent-keepalive" loop style="display:none;"></audio>
 
     <!-- Header -->
@@ -56,12 +56,12 @@
                         <h1 class="text-xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
                             BGM Master Player Pro
                         </h1>
-                        <span id="bg-keepalive-badge" class="text-[10px] px-2 py-0.5 rounded-full font-mono bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1" title="GAS / iframe バックグラウンド動作保護">
+                        <span id="bg-keepalive-badge" class="text-[10px] px-2 py-0.5 rounded-full font-mono bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1" title="バックグラウンド再生保護機能">
                             <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
                             <span>Background Engine: Ready</span>
                         </span>
                     </div>
-                    <p class="text-xs text-slate-400">for GAS & Web • Quick Shortcuts: W (BGM1), E (BGM2), R (BGM3), S (Stop)</p>
+                    <p class="text-xs text-slate-400">GitHub Pages / Web App • Quick Shortcuts: W (BGM1), E (BGM2), R (BGM3), S (Stop)</p>
                 </div>
             </div>
 
@@ -87,6 +87,18 @@
             </div>
         </div>
     </header>
+
+    <!-- Security & OS Restriction Info Banner -->
+    <div class="bg-indigo-950/60 border-b border-indigo-800/50 px-4 py-2.5 text-xs text-indigo-200">
+        <div class="max-w-7xl mx-auto flex items-start sm:items-center gap-2">
+            <i data-lucide="shield-alert" class="w-4 h-4 text-indigo-400 flex-shrink-0 mt-0.5 sm:mt-0"></i>
+            <div>
+                <span class="font-bold text-indigo-300">バックグラウンドでの操作に関する仕様制限：</span>
+                ブラウザおよびOSのセキュリティ仕様（キーロガー防止）により、非アクティブ（バックグラウンド）時は『W』『E』等の直接文字キーの検知が禁止されます。
+                バックグラウンド再生中は<span class="text-white font-semibold underline">OS / キーボードのメディアキー（再生/一時停止、曲送り/曲戻し）</span>にて大域制御（MediaSession）が可能です。
+            </div>
+        </div>
+    </div>
 
     <!-- Main Container -->
     <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -338,11 +350,11 @@
             setupBackgroundKeepAlive();
         });
 
-        // --- Background Keep-Alive System ---
+        // --- Background Keep-Alive & Audio Pipeline ---
         function setupBackgroundKeepAlive() {
             silentAudioEl = document.getElementById('silent-keepalive');
             
-            // Create 1-second silent WAV data URI to keep browser audio pipeline awake
+            // Create silent audio data URI to keep browser process active during backgrounding
             const sampleRate = 8000;
             const numSamples = sampleRate;
             const buffer = new Uint8Array(44 + numSamples * 2);
@@ -434,6 +446,7 @@
             window.addEventListener('resize', resize);
         }
 
+        // --- MediaSession Global Controls Handler ---
         function updateMediaSession(track) {
             if ('mediaSession' in navigator && track) {
                 navigator.mediaSession.metadata = new MediaMetadata({
@@ -441,9 +454,23 @@
                     artist: 'BGM Master Player',
                     album: track.fileName,
                 });
+
+                // Set up global OS action handlers for media keys
                 navigator.mediaSession.setActionHandler('play', () => togglePlayPause());
                 navigator.mediaSession.setActionHandler('pause', () => togglePlayPause());
                 navigator.mediaSession.setActionHandler('stop', () => fadeOutCurrentTrack());
+                navigator.mediaSession.setActionHandler('nexttrack', () => {
+                    if (tracks.length > 0) {
+                        const nextIdx = (currentTrackIndex + 1) % tracks.length;
+                        playTrack(nextIdx);
+                    }
+                });
+                navigator.mediaSession.setActionHandler('previoustrack', () => {
+                    if (tracks.length > 0) {
+                        const prevIdx = (currentTrackIndex - 1 + tracks.length) % tracks.length;
+                        playTrack(prevIdx);
+                    }
+                });
             }
         }
 
